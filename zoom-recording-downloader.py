@@ -11,6 +11,7 @@
 # Forked from:  https://gist.github.com/danaspiegel/c33004e52ffacb60c24215abf8301680
 
 # System modules
+import argparse
 import base64
 import json
 import os
@@ -105,14 +106,14 @@ def setup_google_drive():
             if choice.lower() != 'y':
                 system.exit(1)
             return None
-            
+
         if not drive_client.initialize_root_folder():
             print(f"{Color.RED}### Failed to create root folder in Google Drive{Color.END}")
             choice = input("Would you like to continue with local storage instead? (y/n): ")
             if choice.lower() != 'y':
                 system.exit(1)
             return None
-            
+
         return drive_client
     except Exception as e:
         print(f"{Color.RED}### Google Drive initialization failed: {str(e)}{Color.END}")
@@ -256,7 +257,7 @@ def list_recordings(email):
     """ Start date now split into YEAR, MONTH, and DAY variables (Within 6 month range)
         then get recordings within that range
     """
-    
+
     recordings = []
 
     for start, end in per_delta(RECORDING_START_DATE, RECORDING_END_DATE, timedelta(days=30)):
@@ -327,11 +328,34 @@ def handle_graceful_shutdown(signal_received, frame):
     system.exit(0)
 
 
+def parse_arguments():
+    """Parse command-line arguments"""
+    parser = argparse.ArgumentParser(
+        description="Zoom Recording Downloader - Download and organize Zoom cloud recordings"
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip downloading files that already exist in the output directory"
+    )
+    parser.add_argument(
+        "--skip-users",
+        nargs="+",
+        metavar="EMAIL",
+        default=[],
+        help="List of user emails to skip (e.g., --skip-users user1@example.com user2@example.com)"
+    )
+    return parser.parse_args()
+
+
 # ################################################################
 # #                        MAIN                                  #
 # ################################################################
 
 def main():
+    # Parse command-line arguments
+    args = parse_arguments()
+
     # clear the screen buffer
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -382,12 +406,23 @@ def main():
 
     print(f"{Color.BOLD}Getting user accounts...{Color.END}")
     users = get_users()
+    total_users = len(users)
 
-    for email, user_id, first_name, last_name in users:
+    print(f"\n{Color.BOLD}Found {total_users} users:{Color.END}")
+    for idx, (email, user_id, first_name, last_name) in enumerate(users, start=1):
+        user_display = f"{first_name} {last_name} - {email}" if first_name and last_name else email
+        print(f"  {idx}. {user_display}")
+
+    for user_idx, (email, user_id, first_name, last_name) in enumerate(users, start=1):
+        # Skip users specified in --skip-users
+        if email in args.skip_users:
+            print(f"\n{Color.DARK_CYAN}Skipping user {user_idx}/{total_users}: {email}{Color.END}")
+            continue
+
         userInfo = (
             f"{first_name} {last_name} - {email}" if first_name and last_name else f"{email}"
         )
-        print(f"\n{Color.BOLD}Getting recording list for {userInfo}{Color.END}")
+        print(f"\n{Color.BOLD}[{user_idx}/{total_users}] Getting recording list for {userInfo}{Color.END}")
 
         recordings = list_recordings(user_id)
         total_count = len(recordings)
@@ -424,12 +459,18 @@ def main():
                     }
                     filename, folder_name = format_filename(params)
 
-                    print(f"    > Downloading {filename}")
                     sanitized_download_dir = path_validate.sanitize_filepath(
                         os.sep.join([DOWNLOAD_DIRECTORY, folder_name])
                     )
                     sanitized_filename = path_validate.sanitize_filename(filename)
                     full_filename = os.sep.join([sanitized_download_dir, sanitized_filename])
+
+                    # Skip if file already exists and --skip-existing flag is set
+                    if args.skip_existing and os.path.exists(full_filename):
+                        print(f"    > Skipping {filename} (already exists)")
+                        continue
+
+                    print(f"    > Downloading {filename}")
 
                     if download_recording(download_url, email, filename, folder_name):
                         if GDRIVE_ENABLED and drive_service:
