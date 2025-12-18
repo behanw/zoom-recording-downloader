@@ -51,7 +51,7 @@ except json.JSONDecodeError as e:
     print(f"{Color.RED}### Error parsing JSON in {CONF_PATH}: {e}")
     system.exit(1)
 except FileNotFoundError:
-    print(f"{Color.RED}### Configuqration file {CONF_PATH} not found")
+    print(f"{Color.RED}### Configuration file {CONF_PATH} not found")
     system.exit(1)
 except Exception as e:
     print(f"{Color.RED}### Unexpected error: {e}")
@@ -209,6 +209,51 @@ def format_filename(params):
     filename = MEETING_FILENAME.format(**locals())
     folder = MEETING_FOLDER.format(**locals())
     return (filename, folder)
+
+
+def truncate_filename(filename, max_length=75):
+    """
+    Truncate filename to max_length characters, keeping the extension visible.
+    If filename is longer than max_length, truncate in the middle with ellipses.
+    
+    Args:
+        filename: The filename to truncate
+        max_length: Maximum length including ellipses (default: 75)
+    
+    Returns:
+        Truncated filename if longer than max_length, otherwise original filename
+    """
+    if len(filename) <= max_length:
+        return filename
+    
+    # Find the extension (everything after the last dot)
+    last_dot_index = filename.rfind('.')
+    if last_dot_index == -1:
+        # No extension found, treat entire filename as name
+        extension = ""
+        name_part = filename
+    else:
+        extension = filename[last_dot_index:]  # includes the dot
+        name_part = filename[:last_dot_index]
+    
+    # Calculate available space for name parts: max_length - ellipses - extension
+    ellipses = "..."
+    available_space = max_length - len(ellipses) - len(extension)
+    
+    # If extension is too long, we can't fit it (shouldn't happen in practice)
+    if available_space < 2:
+        return filename[:max_length - 3] + "..."
+    
+    # Split available space equally between start and end
+    start_length = available_space // 2
+    end_length = available_space - start_length  # Handles odd numbers
+    
+    # Extract start and end parts
+    start_part = name_part[:start_length]
+    end_part = name_part[-end_length:] if end_length > 0 else ""
+    
+    # Combine: start + ellipses + end + extension
+    return start_part + ellipses + end_part + extension
 
 
 def get_downloads(recording):
@@ -467,10 +512,10 @@ def main():
 
                     # Skip if file already exists and --skip-existing flag is set
                     if args.skip_existing and os.path.exists(full_filename):
-                        print(f"    > Skipping {filename} (already exists)")
+                        print(f"    > Skipping {truncate_filename(filename)} (already exists)")
                         continue
 
-                    print(f"    > Downloading {filename}")
+                    print(f"    > Downloading {truncate_filename(filename)}")
 
                     if download_recording(download_url, email, filename, folder_name):
                         if GDRIVE_ENABLED and drive_service:
