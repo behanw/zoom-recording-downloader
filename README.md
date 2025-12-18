@@ -167,3 +167,25 @@ When prompted, choose your preferred storage method:
 2. Google Drive - Uploads recordings to your Google Drive account
 
 Note: For Google Drive uploads, files are temporarily downloaded to local storage before being uploaded, then automatically deleted after successful upload.
+
+## Command-Line Arguments ##
+
+The script supports the following optional command-line arguments:
+
+- **`--skip-existing`**: Skip downloading files that already exist in the output directory. This is useful for resuming interrupted downloads or re-running the script without re-downloading existing files.
+
+  ```sh
+  $ python zoom-recording-downloader.py --skip-existing
+  ```
+
+- **`--skip-users`**: Skip processing recordings for specific users by their email addresses. You can specify multiple users by providing multiple email addresses.
+
+  ```sh
+  $ python zoom-recording-downloader.py --skip-users user1@example.com user2@example.com
+  ```
+
+You can combine both arguments:
+
+```sh
+$ python zoom-recording-downloader.py --skip-existing --skip-users user1@example.com user2@example.com
+```
